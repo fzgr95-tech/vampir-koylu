@@ -1,0 +1,786 @@
+:root {
+    --bg-color: #0f0c29;
+    --primary-color: #00d4ff;
+    /* Neon Mavi */
+    --secondary-color: #ff0055;
+    /* Neon Pembe/Kırmızı */
+    --accent-color: #7000ff;
+    /* Neon Mor */
+    --text-color: #ffffff;
+    --glass-bg: rgba(255, 255, 255, 0.05);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --card-radius: 16px;
+    --font-main: 'Outfit', sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    color: var(--text-color);
+    font-family: var(--font-main);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+}
+
+html {
+    overflow-x: hidden;
+    width: 100%;
+}
+
+/* Background Animation Elements */
+.background-globes {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    z-index: -1;
+}
+
+.globe {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.4;
+}
+
+.globe-1 {
+    width: 300px;
+    height: 300px;
+    background: var(--primary-color);
+    top: -50px;
+    left: -50px;
+}
+
+.globe-2 {
+    width: 400px;
+    height: 400px;
+    background: var(--secondary-color);
+    bottom: -100px;
+    right: -100px;
+}
+
+.globe-3 {
+    width: 200px;
+    height: 200px;
+    background: var(--accent-color);
+    top: 40%;
+    left: 40%;
+}
+
+.container {
+    width: 100%;
+    max-width: 480px;
+    padding: 20px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Screen Management */
+.screen {
+    display: none;
+    width: 100%;
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+.screen.active {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Typography */
+h1.game-title {
+    font-size: 3rem;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 2rem;
+    background: -webkit-linear-gradient(var(--primary-color), var(--secondary-color));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+}
+
+h2 {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    color: var(--text-color);
+}
+
+/* Buttons */
+.btn {
+    border: none;
+    outline: none;
+    padding: 14px 24px;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    width: 100%;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.btn-primary {
+    background: var(--primary-color);
+    color: #000;
+    box-shadow: 0 0 15px var(--primary-color);
+}
+
+.btn-primary:active {
+    transform: scale(0.98);
+}
+
+.btn-secondary {
+    background: transparent;
+    border: 2px solid var(--primary-color);
+    color: var(--primary-color);
+}
+
+.btn-action {
+    background: linear-gradient(90deg, var(--secondary-color), var(--accent-color));
+    color: white;
+}
+
+.btn-text {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.6);
+    text-decoration: underline;
+    text-transform: none;
+    padding: 10px;
+}
+
+.menu-buttons {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* Forms */
+.form-section {
+    width: 100%;
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    padding: 24px;
+    border-radius: var(--card-radius);
+    margin-top: 20px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.input-group {
+    margin-bottom: 15px;
+    text-align: left;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    font-family: inherit;
+    font-size: 1rem;
+}
+
+input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+}
+
+/* Players List */
+.players-list {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 10px;
+    margin: 20px 0;
+}
+
+.player-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 15px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    transition: transform 0.2s;
+}
+
+.player-avatar {
+    width: 50px;
+    height: 50px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+/* Game Area */
+.players-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    width: 100%;
+}
+
+.game-player-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 15px;
+    text-align: center;
+    position: relative;
+}
+
+.game-player-card.is-vampire {
+    border-color: var(--secondary-color);
+    box-shadow: inset 0 0 20px rgba(255, 0, 85, 0.2);
+}
+
+.game-player-card.is-dead {
+    opacity: 0.5;
+    filter: grayscale(1);
+    text-decoration: line-through;
+}
+
+.role-vampire {
+    color: var(--secondary-color);
+}
+
+.role-villager {
+    color: var(--primary-color);
+}
+
+.start-button-container {
+    margin-top: 20px;
+    width: 100%;
+}
+
+/* Animations */
+.pulse {
+    animation: pulse-animation 2s infinite;
+}
+
+@keyframes pulse-animation {
+    0% {
+        box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.4);
+    }
+
+    70% {
+        box-shadow: 0 0 0 20px rgba(0, 212, 255, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(0, 212, 255, 0);
+    }
+}
+
+/* Toast */
+#toast-container {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+}
+
+.toast {
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    border-left: 4px solid var(--primary-color);
+    animation: fadeInToast 0.3s forwards;
+}
+
+.toast.error {
+    border-color: var(--secondary-color);
+}
+
+@keyframes fadeInToast {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Room List Styles */
+.room-list-container {
+    width: 100%;
+    margin-top: 20px;
+}
+
+.room-list {
+    max-height: 300px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px 0;
+}
+
+.room-item {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    padding: 15px;
+    border-radius: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.room-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
+}
+
+.room-info h4 {
+    color: var(--text-color);
+    margin-bottom: 5px;
+}
+
+.room-info p {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.room-lock {
+    font-size: 1.2rem;
+    color: var(--secondary-color);
+}
+
+.empty-list {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.4);
+    font-style: italic;
+    padding: 20px;
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(5px);
+}
+
+.modal-content {
+    width: 90%;
+    max-width: 400px;
+    background: #24243e;
+    /* Solid background for modal */
+    border: 1px solid var(--primary-color);
+}
+
+/* ULTIMATE EDITION STYLES */
+
+/* Night Mode */
+body.night-mode {
+    background: #000;
+}
+
+body.night-mode .background-globes .globe {
+    background: #500;
+    opacity: 0.3;
+}
+
+body.night-mode .app-container {
+    background: rgba(20, 0, 0, 0.6);
+    border-color: #500;
+}
+
+/* Glitch Effect */
+.glitch {
+    position: relative;
+    color: var(--text-primary);
+}
+
+.glitch::before,
+.glitch::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.glitch::before {
+    left: 2px;
+    text-shadow: -1px 0 red;
+    clip: rect(24px, 550px, 90px, 0);
+    animation: glitch-anim-2 3s infinite linear alternate-reverse;
+}
+
+.glitch::after {
+    left: -2px;
+    text-shadow: -1px 0 blue;
+    clip: rect(85px, 550px, 140px, 0);
+    animation: glitch-anim 2.5s infinite linear alternate-reverse;
+}
+
+@keyframes glitch-anim {
+    0% {
+        clip: rect(10px, 9999px, 80px, 0);
+        transform: skew(0.5deg);
+    }
+
+    10% {
+        clip: rect(80px, 9999px, 30px, 0);
+        transform: skew(-0.5deg);
+    }
+
+    100% {
+        clip: rect(30px, 9999px, 90px, 0);
+        transform: skew(0);
+    }
+}
+
+/* Chaos Banner */
+.chaos-banner {
+    background: rgba(255, 0, 100, 0.2);
+    border: 1px solid var(--primary-color);
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    text-align: center;
+    animation: pulse 2s infinite;
+}
+
+#chaos-title {
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+/* Duel Overlay */
+#duel-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+#duel-overlay h1 {
+    font-size: 4rem;
+    color: red;
+    margin-bottom: 20px;
+}
+
+#duel-click-btn {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: red;
+    border: 5px solid white;
+    font-size: 2rem;
+    font-weight: bold;
+    color: white;
+    cursor: pointer;
+    transition: transform 0.05s;
+}
+
+#duel-click-btn:active {
+    transform: scale(0.95);
+}
+
+/* Haunt Controls */
+#dead-controls {
+    border-top: 1px solid #333;
+    padding-top: 10px;
+    margin-top: 10px;
+}
+
+/* Shake Animation */
+.shake {
+    animation: shake 0.5s infinite;
+}
+
+@keyframes shake {
+    0% {
+        transform: translate(1px, 1px) rotate(0deg);
+    }
+
+    10% {
+        transform: translate(-1px, -2px) rotate(-1deg);
+    }
+
+    30% {
+        transform: translate(3px, 2px) rotate(0deg);
+    }
+
+    50% {
+        transform: translate(-1px, 2px) rotate(-1deg);
+    }
+
+    70% {
+        transform: translate(3px, 1px) rotate(-1deg);
+    }
+
+    100% {
+        transform: translate(1px, -2px) rotate(-1deg);
+    }
+}
+
+/* Stress Overlay */
+#stress-overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 3rem;
+    color: red;
+    font-weight: bold;
+    border: 5px solid red;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 9000;
+    text-align: center;
+    animation: pulse-fast 0.2s infinite;
+}
+
+@keyframes pulse-fast {
+    0% {
+        opacity: 0.5;
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    50% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.1);
+    }
+
+    100% {
+        opacity: 0.5;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+/* === SOHBET === */
+.chat-container {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 10px;
+    margin-top: 15px;
+    width: 100%;
+}
+
+.chat-messages {
+    max-height: 150px;
+    overflow-y: auto;
+    padding: 5px;
+}
+
+.chat-message {
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 0.9rem;
+}
+
+.chat-message:last-child {
+    border-bottom: none;
+}
+
+.chat-time {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.75rem;
+    margin-right: 5px;
+}
+
+.chat-sender {
+    color: var(--primary-color);
+}
+
+.ghost-message {
+    opacity: 0.6;
+    font-style: italic;
+}
+
+.ghost-message .chat-sender {
+    color: #888;
+}
+
+.chat-input-area {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.chat-input-area input {
+    flex: 1;
+}
+
+/* === GERİ SAYIM === */
+.countdown {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--primary-color);
+    padding: 5px 15px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+}
+
+.countdown-urgent {
+    color: var(--secondary-color) !important;
+    animation: pulse-animation 0.5s infinite;
+}
+
+/* === GECE HEDEFLER === */
+.night-targets-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 15px;
+}
+
+.night-targets-grid .btn {
+    width: auto;
+    padding: 10px 20px;
+}
+
+/* === ÖLÜ KONTROLLER === */
+.dead-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+.dead-actions .btn {
+    width: auto;
+}
+
+/* === ROL BADGE'LER === */
+.role-badge {
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+}
+
+.role-vampire {
+    background: rgba(255, 0, 85, 0.2);
+    color: var(--secondary-color);
+    border: 1px solid var(--secondary-color);
+}
+
+.role-villager {
+    background: rgba(0, 212, 255, 0.2);
+    color: var(--primary-color);
+    border: 1px solid var(--primary-color);
+}
+
+.role-doctor {
+    background: rgba(0, 255, 100, 0.2);
+    color: #00ff64;
+    border: 1px solid #00ff64;
+}
+
+.role-seer {
+    background: rgba(180, 0, 255, 0.2);
+    color: #b400ff;
+    border: 1px solid #b400ff;
+}
+
+.role-traitor {
+    background: rgba(255, 150, 0, 0.2);
+    color: #ff9600;
+    border: 1px solid #ff9600;
+}
+
+/* === OYUN HEADER === */
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 10px 0;
+    margin-bottom: 15px;
+}
+
+.phase-indicator {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+/* === LOBİ ÇIKIŞ BUTONU === */
+.lobby-header {
+    text-align: center;
+    margin-bottom: 20px;
+}

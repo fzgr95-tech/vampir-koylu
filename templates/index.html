@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vampir Köylü</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=4">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+
+<body>
+
+    <div class="background-globes">
+        <div class="globe globe-1"></div>
+        <div class="globe globe-2"></div>
+        <div class="globe globe-3"></div>
+    </div>
+
+    <div class="container">
+
+        <!-- BÖLÜM 1: GİRİŞ EKRANI -->
+        <div id="screen-home" class="screen active">
+            <h1 class="game-title">VAMPİR KÖYLÜ</h1>
+
+            <div class="user-input-area" style="margin-bottom: 20px; width: 100%;">
+                <input type="text" id="global-username" placeholder="Önce Kullanıcı Adını Gir"
+                    style="text-align: center; border-color: var(--primary-color);">
+            </div>
+
+            <div class="menu-buttons">
+                <button onclick="showCreateRoom()" class="btn btn-primary">Oda Kur</button>
+            </div>
+
+            <div class="room-list-container">
+                <h3>Aktif Odalar</h3>
+                <div id="room-list" class="room-list">
+                    <!-- Odalar buraya gelecek -->
+                    <div class="empty-list">Hiç oda yok...</div>
+                </div>
+            </div>
+
+            <!-- Oda Kurma Formu -->
+            <div id="create-room-form" class="form-section hidden">
+                <h2>Oda Oluştur</h2>
+                <div class="input-group">
+                    <label>Oda İsmi</label>
+                    <input type="text" id="create-room-name" placeholder="Örn: Kurtlar Vadisi">
+                </div>
+                <div class="input-group">
+                    <label>Oda Şifresi (İsteğe Bağlı)</label>
+                    <input type="text" id="create-password" placeholder="Boş bırakırsan şifresiz olur">
+                </div>
+                <div class="input-group">
+                    <label>Vampir Sayısı</label>
+                    <input type="number" id="vampire-count" value="1" min="1" max="5">
+                </div>
+                <div class="input-group">
+                    <label>Konuşma Süresi (Saniye)</label>
+                    <input type="number" id="speak-duration" value="60" min="10" max="300">
+                </div>
+                <div class="input-group" style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="enable-infection" style="width: auto;">
+                    <label for="enable-infection" style="margin: 0;">Enfeksiyon Modu (Vampirler öldürmez,
+                        dönüştürür)</label>
+                </div>
+                <div class="form-actions">
+                    <button onclick="createRoom()" class="btn btn-action">Oluştur</button>
+                    <button onclick="showHome()" class="btn btn-text">Geri</button>
+                </div>
+            </div>
+
+            <!-- Şifre Sorma Modalı (Gizli) -->
+            <div id="password-modal" class="modal hidden">
+                <div class="modal-content form-section">
+                    <h3>Şifre Girin</h3>
+                    <input type="text" id="join-password-input" placeholder="Oda şifresi">
+                    <div class="form-actions">
+                        <button id="confirm-join-btn" class="btn btn-primary">Katıl</button>
+                        <button onclick="closePasswordModal()" class="btn btn-text">İptal</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BÖLÜM 2: LOBİ EKRANI -->
+        <div id="screen-lobby" class="screen">
+            <div class="lobby-header">
+                <h2 id="lobby-name-display">Lobi İsmi</h2>
+                <p>Oda Kodu: <span id="lobby-code-display" style="color:var(--primary-color)"></span></p>
+                <p>Oyuncular bekleniyor...</p>
+            </div>
+
+            <div class="players-list" id="lobby-players-list">
+                <!-- Oyuncular buraya gelecek -->
+            </div>
+
+            <div id="admin-controls" class="hidden">
+                <button onclick="startGame()" class="btn btn-primary pulse">Oyunu Başlat</button>
+            </div>
+            <button onclick="leaveLobby()" class="btn btn-text" style="margin-top: 20px;">← Lobiden Ayrıl</button>
+
+            <!-- Lobi Sohbet Paneli -->
+            <div id="lobby-chat-panel" class="chat-container" style="margin-top: 20px;">
+                <h4 style="margin-bottom: 10px;">💬 Lobi Sohbeti</h4>
+                <div id="lobby-chat-messages" class="chat-messages"></div>
+                <div class="chat-input-area">
+                    <input type="text" id="lobby-chat-input" placeholder="Mesaj yaz..."
+                        onkeypress="if(event.key==='Enter') sendLobbyChatMessage()">
+                    <button onclick="sendLobbyChatMessage()" class="btn btn-primary"
+                        style="width: auto; padding: 12px 20px;">➤</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- BÖLÜM 3: OYUN EKRANI -->
+        <div id="screen-game" class="screen">
+            <div class="game-header">
+                <div class="role-badge" id="my-role-badge">?</div>
+                <div class="phase-indicator" id="game-phase">Gündüz</div>
+                <div id="countdown-display" class="countdown hidden">
+                    <span id="countdown-timer">60</span>
+                </div>
+            </div>
+
+            <!-- Kaos Kartı Bildirimi -->
+            <div id="chaos-notification" class="chaos-banner hidden">
+                <span id="chaos-title">⚡ KAOS KARTI</span>
+                <p id="chaos-desc"></p>
+            </div>
+
+            <div class="game-area">
+                <div class="players-grid" id="game-players-grid">
+                    <!-- Oyun içi oyuncu kartları -->
+                </div>
+            </div>
+
+            <div id="action-area">
+                <!-- Oylama butonları -->
+                <div id="voting-controls" class="hidden">
+                    <h3>Oylama Zamanı!</h3>
+                    <p>Şüphelendiğin kişiyi seç.</p>
+                </div>
+
+                <!-- Gece Aksiyonları Paneli -->
+                <div id="night-controls" class="form-section hidden">
+                    <h3 id="night-action-title">🌙 GECE</h3>
+                    <p id="night-action-desc">Hedefini seç</p>
+                    <div id="night-targets" class="night-targets-grid"></div>
+                </div>
+
+                <!-- Ölü Oyuncu Kontrolleri -->
+                <div id="dead-controls" class="form-section hidden">
+                    <h3>👻 Hayalet Modundasın</h3>
+                    <p>Yaşayanları rahatsız edebilirsin!</p>
+                    <div class="dead-actions">
+                        <button onclick="haunt('vibrate')" class="btn btn-secondary">📳 Titret</button>
+                        <button onclick="haunt('jumpscare')" class="btn btn-secondary">👁️ Korkut</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sohbet Paneli -->
+            <div id="chat-panel" class="chat-container">
+                <div id="chat-messages" class="chat-messages"></div>
+                <div class="chat-input-area">
+                    <input type="text" id="chat-input" placeholder="Mesaj yaz..."
+                        onkeypress="if(event.key==='Enter') sendChatMessage()">
+                    <button onclick="sendChatMessage()" class="btn btn-primary"
+                        style="width: auto; padding: 12px 20px;">➤</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Stres Analizi Overlay -->
+    <div id="stress-overlay" class="hidden">
+        ⚠️ NABIZ YÜKSEK!
+    </div>
+
+    <!-- Düello Overlay -->
+    <div id="duel-overlay" class="hidden">
+        <h1>⚔️ DÜELLO!</h1>
+        <p>En hızlı tıklayan kazanır!</p>
+        <button id="duel-click-btn">TIKLA!</button>
+    </div>
+
+    <!-- Notification / Toast Container -->
+    <div id="toast-container"></div>
+
+    <script src="{{ url_for('static', filename='js/game.js') }}"></script>
+</body>
+
+</html>
