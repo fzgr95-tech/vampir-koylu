@@ -49,12 +49,15 @@ def handle_create_room(data):
     vampire_count = int(data.get('vampire_count', 1))
     room_name = data.get('room_name') or f"Oda {room_code}"
     
+    infection_mode = data.get('infection_mode', False)
+    
     rooms[room_code] = {
         'password': password,
         'name': room_name,
         'vampire_count': vampire_count,
+        'infection_mode': infection_mode,
         'players': {}, # sid -> {name, role, is_alive, is_admin}
-        'game_state': 'lobby', # lobby, day, night, voting
+        'game_state': 'lobby', # lobby, day, night, voting, game_over
         'messages': []
     }
     
@@ -64,10 +67,12 @@ def handle_create_room(data):
     # Oda kurucusu otomatik katılır
     join_room(room_code)
     
-    # Süre ayarı (saniye cinsinden, varsayılan 60sn)
+    # Süre ayarları (saniye cinsinden)
     duration = int(data.get('duration', 60))
+    vote_duration = int(data.get('vote_duration', 30))
     room = rooms[room_code]
     room['duration'] = duration
+    room['vote_duration'] = vote_duration
     
     emit('room_created', {'room_code': room_code})
     
@@ -232,7 +237,6 @@ def start_day_phase(room_code):
 
 def run_timer(room_code, duration):
     """Basit bir geri sayım ve ardından oylamaya geçiş"""
-    import time
     time.sleep(duration)
     
     # Eğer oyun hala devam ediyorsa oylamaya geç
@@ -246,18 +250,35 @@ def start_voting_phase(room_code):
     if not room: return
     
     room['game_state'] = 'voting'
+    room['voting_complete'] = False  # Flag'i sıfırla
     # Oyları sıfırla
     for p in room['players'].values():
         p['voted_for'] = None
 
-    emit('state_update', {
+    vote_duration = room.get('vote_duration', 30)
+    
+    socketio.emit('state_update', {
         'state': 'voting', 
-        'message': 'Oylama Başladı! Şüphelendiğin kişiye oy ver.'
+        'message': f'Oylama Başladı! {vote_duration} saniye içinde oy ver.',
+        'duration': vote_duration
     }, to=room_code)
     
     # Oy verilebilir yaşayan oyuncuların listesini gönder
     alive_players = {sid: p['name'] for sid, p in room['players'].items() if p['is_alive']}
-    emit('voting_started', {'candidates': alive_players}, to=room_code)
+    socketio.emit('voting_started', {'candidates': alive_players, 'duration': vote_duration}, to=room_code)
+    
+    # Oylama timer'ını başlat
+    socketio.start_background_task(run_voting_timer, room_code, vote_duration)
+
+def run_voting_timer(room_code, duration):
+    """Oylama süresi dolunca otomatik değerlendirme"""
+    time.sleep(duration)
+    
+    room = rooms.get(room_code)
+    if room and room['game_state'] == 'voting' and not room.get('voting_complete'):
+        with app.app_context():
+            room['voting_complete'] = True
+            evaluate_votes(room_code)
 
 @socketio.on('vote')
 def handle_vote(data):
@@ -280,11 +301,15 @@ def handle_vote(data):
     
     emit('vote_update', {'votes_cast': votes_cast, 'total_alive': alive_count}, to=room_code)
     
+    # Herkes oy kullandıysa hemen değerlendir
     if votes_cast >= alive_count:
+        room['voting_complete'] = True
         evaluate_votes(room_code)
 
 def evaluate_votes(room_code):
     room = rooms.get(room_code)
+    if not room:
+        return
     
     # Oyları say
     vote_counts = {}
@@ -294,7 +319,8 @@ def evaluate_votes(room_code):
             vote_counts[target] = vote_counts.get(target, 0) + 1
             
     if not vote_counts:
-        emit('game_over', {'message': 'Kimse oy kullanmadı. Oyun bitti (veya berabere).'}, to=room_code)
+        socketio.emit('game_over', {'message': 'Kimse oy kullanmadı. Oyun bitti (veya berabere).'}, to=room_code)
+        room['game_state'] = 'game_over'
         return
 
     # En çok oy alanı bul
@@ -302,18 +328,21 @@ def evaluate_votes(room_code):
     candidates = [target for target, count in vote_counts.items() if count == max_votes]
     
     if len(candidates) > 1:
-        # Beraberlik durumu - Şimdilik kimse ölmesin veya rastgele? 
-        # Basitlik için kimse ölmesin diyelim
-        emit('vote_result', {'message': 'Oylar eşit! Kimse asılmadı.', 'victim_name': None}, to=room_code)
-        # Yeni gün başlat veya geceye geç? Basitlik için yeni tur (Game Loop döngüsü henüz tam değil)
-        # Oyun bitip bitmediğini kontrol etmemiz lazım ama şimdilik döngü yok.
+        # Beraberlik durumu - Kimse ölmez, geceye geç
+        socketio.emit('vote_result', {'message': 'Oylar eşit! Kimse asılmadı.', 'victim_name': None}, to=room_code)
+        
+        # Beraberlik sonrası geceye geç
+        check_win_condition(room_code)
+        if room['game_state'] != 'game_over':
+            socketio.sleep(3)
+            start_night_phase(room_code)
     else:
         victim_sid = candidates[0]
         victim_name = room['players'][victim_sid]['name']
         room['players'][victim_sid]['is_alive'] = False
         victim_role = room['players'][victim_sid]['role']
         
-        emit('vote_result', {
+        socketio.emit('vote_result', {
             'message': f'{victim_name} asıldı! Rolü: {victim_role}', 
             'victim_name': victim_name,
             'victim_role': victim_role,
@@ -333,13 +362,21 @@ def evaluate_votes(room_code):
 
 def check_win_condition(room_code):
     room = rooms.get(room_code)
+    if not room:
+        return
+    
+    # Vampirler ve Köstebek kötü taraf
     alive_vampires = len([p for p in room['players'].values() if p['is_alive'] and p['role'] == 'vampire'])
-    alive_villagers = len([p for p in room['players'].values() if p['is_alive'] and p['role'] == 'villager'])
+    # Köylü, Doktor, Medyum iyi taraf (Köstebek hariç)
+    alive_good_team = len([p for p in room['players'].values() 
+        if p['is_alive'] and p['role'] not in ['vampire', 'traitor']])
     
     if alive_vampires == 0:
-        emit('game_end', {'winner': 'villagers', 'message': 'Tüm vampirler öldü! Köylüler kazandı!'}, to=room_code)
-    elif alive_vampires >= alive_villagers:
-        emit('game_end', {'winner': 'vampires', 'message': 'Vampirler köylüleri ele geçirdi! Vampirler kazandı!'}, to=room_code)
+        room['game_state'] = 'game_over'
+        socketio.emit('game_end', {'winner': 'villagers', 'message': 'Tüm vampirler öldü! Köylüler kazandı!'}, to=room_code)
+    elif alive_vampires >= alive_good_team:
+        room['game_state'] = 'game_over'
+        socketio.emit('game_end', {'winner': 'vampires', 'message': 'Vampirler köylüleri ele geçirdi! Vampirler kazandı!'}, to=room_code)
     else:
         # Oyun devam ediyor
         pass
@@ -353,7 +390,7 @@ def start_night_phase(room_code):
     
     alive_players_map = {sid: p['name'] for sid, p in room['players'].items() if p['is_alive']}
     
-    emit('night_started', {
+    socketio.emit('night_started', {
         'message': 'Gece çöktü... Vampirler avlanıyor, Doktor ve Medyum görev başına!',
         'alive_players': alive_players_map
     }, to=room_code)
@@ -362,7 +399,6 @@ def start_night_phase(room_code):
     socketio.start_background_task(run_night_timer, room_code, 30)
 
 def run_night_timer(room_code, duration):
-    import time
     time.sleep(duration)
     
     room = rooms.get(room_code)
@@ -392,6 +428,9 @@ def handle_night_action(data):
 
 def resolve_night(room_code):
     room = rooms.get(room_code)
+    if not room:
+        return
+    
     actions = room.get('night_actions', {})
     
     kills = []
@@ -424,7 +463,7 @@ def resolve_night(room_code):
     else:
         message = "Gece olaysız geçti."
         
-    emit('night_result', {'message': message}, to=room_code)
+    socketio.emit('night_result', {'message': message}, to=room_code)
     
     check_win_condition(room_code)
     if room['game_state'] != 'game_over':
@@ -504,6 +543,68 @@ def handle_leave_lobby(data):
         
         socketio.emit('room_list_update', {'rooms': get_public_rooms()}, to='global_lobby')
 
+# --- WebRTC Sesli Sohbet Signaling ---
+
+@socketio.on('voice_join')
+def handle_voice_join(data):
+    """Sesli sohbete katılma - diğer kullanıcılara bildir"""
+    room_code = data.get('room_code')
+    room = rooms.get(room_code)
+    
+    if not room:
+        return
+    
+    # Odadaki diğer kullanıcılara yeni katılımcıyı bildir
+    emit('voice_user_joined', {'peer_id': request.sid}, to=room_code, skip_sid=request.sid)
+
+@socketio.on('voice_offer')
+def handle_voice_offer(data):
+    """WebRTC offer iletimi"""
+    target_id = data.get('target_id')
+    offer = data.get('offer')
+    
+    emit('voice_offer', {
+        'from_id': request.sid,
+        'offer': offer
+    }, room=target_id)
+
+@socketio.on('voice_answer')
+def handle_voice_answer(data):
+    """WebRTC answer iletimi"""
+    target_id = data.get('target_id')
+    answer = data.get('answer')
+    
+    emit('voice_answer', {
+        'from_id': request.sid,
+        'answer': answer
+    }, room=target_id)
+
+@socketio.on('voice_ice')
+def handle_voice_ice(data):
+    """ICE candidate iletimi"""
+    target_id = data.get('target_id')
+    candidate = data.get('candidate')
+    
+    emit('voice_ice', {
+        'from_id': request.sid,
+        'candidate': candidate
+    }, room=target_id)
+
+@socketio.on('voice_speaking')
+def handle_voice_speaking(data):
+    """Konuşuyor durumu bildirimi"""
+    room_code = data.get('room_code')
+    speaking = data.get('speaking')
+    room = rooms.get(room_code)
+    
+    if room and request.sid in room['players']:
+        username = room['players'][request.sid]['name']
+        emit('voice_speaking', {
+            'username': username,
+            'speaking': speaking
+        }, to=room_code, skip_sid=request.sid)
+
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, port=5000, host='0.0.0.0')
+    socketio.run(app, debug=True, port=5000, host='0.0.0.0', allow_unsafe_werkzeug=True)
+

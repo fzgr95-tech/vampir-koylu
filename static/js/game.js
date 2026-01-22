@@ -7,6 +7,12 @@ let isAdmin = false;
 let myRole = null;
 let isAlive = true;
 
+// WebRTC Sesli Sohbet
+let localStream = null;
+let peerConnections = {};
+let isVoiceEnabled = false;
+let isTalking = false;
+
 // DOM Elementleri
 const screens = {
     home: document.getElementById('screen-home'),
@@ -74,6 +80,7 @@ function createRoom() {
     const password = document.getElementById('create-password').value;
     const vampireCount = document.getElementById('vampire-count').value;
     const duration = document.getElementById('speak-duration').value;
+    const voteDuration = document.getElementById('vote-duration').value;
     const infectionMode = document.getElementById('enable-infection').checked;
 
     socket.emit('create_room', {
@@ -81,6 +88,7 @@ function createRoom() {
         password: password,
         vampire_count: vampireCount,
         duration: duration,
+        vote_duration: voteDuration,
         infection_mode: infectionMode
     });
 }
@@ -380,11 +388,16 @@ socket.on('state_update', (data) => {
 
 // Voting
 socket.on('voting_started', (data) => {
-    // Geri sayımı durdur
+    // Önceki geri sayımı durdur
     stopCountdown();
 
     // Faz göstergesini güncelle
     document.getElementById('game-phase').innerText = '🗳️ OYLAMA';
+
+    // Oylama geri sayımını başlat
+    if (data.duration) {
+        startCountdown(data.duration);
+    }
 
     const votingPanel = document.getElementById('voting-controls');
     votingPanel.classList.remove('hidden');
@@ -410,8 +423,27 @@ socket.on('voting_started', (data) => {
 });
 
 socket.on('vote_result', (data) => {
-    showToast(data.message, data.victim_name ? "error" : "info");
+    // Geri sayımı durdur
+    stopCountdown();
+
+    // Oylama panelini gizle
     document.getElementById('voting-controls').classList.add('hidden');
+
+    // Sonucu göster
+    if (data.victim_name && data.victim_role) {
+        // Elenen kişinin rolünü göster
+        const roleNames = {
+            'vampire': '🧛 VAMPİR',
+            'villager': '👨‍🌾 KÖYLÜ',
+            'doctor': '💉 DOKTOR',
+            'seer': '🔮 MEDYUM',
+            'traitor': '🐀 KÖSTEBEK'
+        };
+        const roleName = roleNames[data.victim_role] || data.victim_role;
+        showToast(`${data.victim_name} asıldı! Rolü: ${roleName}`, "error");
+    } else {
+        showToast(data.message, "info");
+    }
 
     if (data.victim_name && data.victim_name === myUsername) {
         isAlive = false;
@@ -577,4 +609,201 @@ function showToast(message, type = "info") {
     toast.innerText = message;
     container.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
+}
+
+// === SESLİ SOHBET (WebRTC) ===
+
+const iceServers = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+};
+
+async function initVoiceChat() {
+    try {
+        // Mikrofon erişimi iste
+        localStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: false
+        });
+
+        isVoiceEnabled = true;
+
+        // UI'ı güncelle
+        document.getElementById('mic-status').innerText = '🎤 Mikrofon Hazır';
+        document.getElementById('ptt-btn').classList.add('active');
+        document.getElementById('join-voice-btn').style.display = 'none';
+
+        // Başlangıçta ses kapalı
+        localStream.getAudioTracks().forEach(track => track.enabled = false);
+
+        // Odadaki diğer kullanıcılara katıldığını bildir
+        socket.emit('voice_join', { room_code: currentRoom });
+
+        showToast('Sesli sohbet aktif! Konuşmak için butona bas.', 'success');
+    } catch (err) {
+        console.error('Mikrofon hatası:', err);
+        showToast('Mikrofon erişimi reddedildi!', 'error');
+    }
+}
+
+function startTalking() {
+    if (!isVoiceEnabled || !localStream) return;
+
+    isTalking = true;
+    localStream.getAudioTracks().forEach(track => track.enabled = true);
+
+    document.getElementById('ptt-btn').classList.add('talking');
+    document.getElementById('mic-status').innerText = '🔴 KONUŞUYORSUN';
+
+    // Diğerlerine konuştuğunu bildir
+    socket.emit('voice_speaking', { room_code: currentRoom, speaking: true });
+}
+
+function stopTalking() {
+    if (!isVoiceEnabled || !localStream) return;
+
+    isTalking = false;
+    localStream.getAudioTracks().forEach(track => track.enabled = false);
+
+    document.getElementById('ptt-btn').classList.remove('talking');
+    document.getElementById('mic-status').innerText = '🎤 Mikrofon Hazır';
+
+    socket.emit('voice_speaking', { room_code: currentRoom, speaking: false });
+}
+
+// Yeni kullanıcı sesli sohbete katılınca
+socket.on('voice_user_joined', async (data) => {
+    if (!isVoiceEnabled) return;
+
+    const peerId = data.peer_id;
+
+    // Yeni peer connection oluştur
+    const pc = new RTCPeerConnection(iceServers);
+    peerConnections[peerId] = pc;
+
+    // Lokal stream'i ekle
+    localStream.getTracks().forEach(track => {
+        pc.addTrack(track, localStream);
+    });
+
+    // Uzak ses gelince çal
+    pc.ontrack = (event) => {
+        const audio = new Audio();
+        audio.srcObject = event.streams[0];
+        audio.autoplay = true;
+        audio.id = `audio-${peerId}`;
+        document.body.appendChild(audio);
+    };
+
+    // ICE candidate'leri gönder
+    pc.onicecandidate = (event) => {
+        if (event.candidate) {
+            socket.emit('voice_ice', {
+                room_code: currentRoom,
+                target_id: peerId,
+                candidate: event.candidate
+            });
+        }
+    };
+
+    // Offer oluştur ve gönder
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    socket.emit('voice_offer', {
+        room_code: currentRoom,
+        target_id: peerId,
+        offer: offer
+    });
+});
+
+// Offer alındığında
+socket.on('voice_offer', async (data) => {
+    if (!isVoiceEnabled) return;
+
+    const peerId = data.from_id;
+
+    const pc = new RTCPeerConnection(iceServers);
+    peerConnections[peerId] = pc;
+
+    localStream.getTracks().forEach(track => {
+        pc.addTrack(track, localStream);
+    });
+
+    pc.ontrack = (event) => {
+        const audio = new Audio();
+        audio.srcObject = event.streams[0];
+        audio.autoplay = true;
+        audio.id = `audio-${peerId}`;
+        document.body.appendChild(audio);
+    };
+
+    pc.onicecandidate = (event) => {
+        if (event.candidate) {
+            socket.emit('voice_ice', {
+                room_code: currentRoom,
+                target_id: peerId,
+                candidate: event.candidate
+            });
+        }
+    };
+
+    await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    socket.emit('voice_answer', {
+        room_code: currentRoom,
+        target_id: peerId,
+        answer: answer
+    });
+});
+
+// Answer alındığında
+socket.on('voice_answer', async (data) => {
+    const pc = peerConnections[data.from_id];
+    if (pc) {
+        await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+    }
+});
+
+// ICE candidate alındığında
+socket.on('voice_ice', async (data) => {
+    const pc = peerConnections[data.from_id];
+    if (pc) {
+        await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+    }
+});
+
+// Birisi konuşmaya başladığında
+socket.on('voice_speaking', (data) => {
+    // İlgili oyuncunun kartına konuşuyor göstergesi ekle
+    const playerCards = document.querySelectorAll('.player-card');
+    playerCards.forEach(card => {
+        if (card.querySelector('.player-name')?.innerText === data.username) {
+            if (data.speaking) {
+                card.classList.add('speaking');
+            } else {
+                card.classList.remove('speaking');
+            }
+        }
+    });
+});
+
+// Lobiden çıkınca temizlik
+function cleanupVoice() {
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+    }
+
+    Object.values(peerConnections).forEach(pc => pc.close());
+    peerConnections = {};
+
+    document.querySelectorAll('audio[id^="audio-"]').forEach(el => el.remove());
+
+    isVoiceEnabled = false;
+    isTalking = false;
 }

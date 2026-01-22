@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vampir Köylü</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=4">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=5">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
@@ -62,6 +62,10 @@
                     <label>Konuşma Süresi (Saniye)</label>
                     <input type="number" id="speak-duration" value="60" min="10" max="300">
                 </div>
+                <div class="input-group">
+                    <label>Oylama Süresi (Saniye)</label>
+                    <input type="number" id="vote-duration" value="30" min="10" max="120">
+                </div>
                 <div class="input-group" style="display: flex; align-items: center; gap: 10px;">
                     <input type="checkbox" id="enable-infection" style="width: auto;">
                     <label for="enable-infection" style="margin: 0;">Enfeksiyon Modu (Vampirler öldürmez,
@@ -101,6 +105,22 @@
             <div id="admin-controls" class="hidden">
                 <button onclick="startGame()" class="btn btn-primary pulse">Oyunu Başlat</button>
             </div>
+
+            <!-- Sesli Sohbet Kontrolleri -->
+            <div id="voice-chat-controls" class="voice-controls" style="display: flex !important;">
+                <div class="voice-status">
+                    <span id="mic-status">🎤 Mikrofon Kapalı</span>
+                </div>
+                <button id="ptt-btn" class="btn btn-voice" onmousedown="startTalking()" onmouseup="stopTalking()"
+                    ontouchstart="startTalking()" ontouchend="stopTalking()" style="display: none;">
+                    🎤 Bas ve Konuş
+                </button>
+                <button onclick="initVoiceChat()" class="btn btn-secondary" id="join-voice-btn"
+                    style="display: block !important;">
+                    🔊 Sesli Sohbete Katıl
+                </button>
+            </div>
+
             <button onclick="leaveLobby()" class="btn btn-text" style="margin-top: 20px;">← Lobiden Ayrıl</button>
 
             <!-- Lobi Sohbet Paneli -->
@@ -159,6 +179,11 @@
                     <div class="dead-actions">
                         <button onclick="haunt('vibrate')" class="btn btn-secondary">📳 Titret</button>
                         <button onclick="haunt('jumpscare')" class="btn btn-secondary">👁️ Korkut</button>
+                    </div>
+                    <div class="chaos-whisper" style="margin-top: 15px;">
+                        <input type="text" id="chaos-msg-input" placeholder="Karanlık fısıltı gönder...">
+                        <button onclick="sendChaosNote()" class="btn btn-secondary" style="margin-top: 10px;">🌀
+                            Fısılda</button>
                     </div>
                 </div>
             </div>
